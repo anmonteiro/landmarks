@@ -2,6 +2,8 @@
 (* See the attached LICENSE file.                                    *)
 (* Copyright 2016 by LexiFi.                                         *)
 
+open Ppxlib
+
 let auto = ref false
 let remove = ref false
 let threads = Mapper.with_thread
@@ -33,31 +35,22 @@ let default_auto, default_remove, default_threads =
       List.mem "threads" opts
 
 let () =
-  let args =
-    Arg.["--remove", Set remove, "ignore all landmarks annotations."]
-  in
-  let mapper _ _ =
-    if !remove then Mapper.remove_attributes else Ast_mapper.default_mapper
-  in
-  let reset_args () =
-    remove := default_remove
-  in
-  Migrate_parsetree.(Driver.register ~reset_args ~args ~name:"landmarks_remove" Versions.ocaml_408 mapper)
-
-let () =
   let args = Arg.[
+      "--remove", Set remove, "ignore all landmarks annotations.";
       "--thread", Set threads, "use the thread-safe version.";
       "--auto", Set auto, "measure all top-level functions."]
   in
-  let mapper _ _ =
-    if !remove && not !auto then
-      Ast_mapper.default_mapper
+  List.iter (fun (k, spec, doc) -> Ppxlib.Driver.add_arg k spec ~doc) args;
+  let mapper s =
+    let mapper = if !remove && not !auto then
+      new Ast_traverse.map
+    else if !remove then
+      (new Mapper.remove_attributes)
     else
-      Mapper.toplevel_mapper !auto
+      new Mapper.toplevel_mapper !auto
+    in
+    mapper#structure s
   in
-  let reset_args () =
-    auto := default_auto;
-    threads := default_threads;
-  in
-  Migrate_parsetree.(Driver.register
-                       ~reset_args ~args ~name:"landmarks" Versions.ocaml_408 mapper)
+  Ppxlib.Driver.register_transformation
+    ~preprocess_impl:mapper
+    "landmarks"

@@ -1,3 +1,3 @@
-open Migrate_parsetree
+open Ppxlib
 
-let () = Driver.run_main ()
+let () = Driver.standalone ()
